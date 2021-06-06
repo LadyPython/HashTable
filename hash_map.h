@@ -5,6 +5,9 @@
 #include <stdexcept>
 #include <algorithm>
 
+
+// Hash Table with Separate Chaining.
+// https://en.wikipedia.org/wiki/Hash_table#Separate_chaining
 template<typename KeyType, typename ValueType, typename Hash = std::hash<KeyType>>
 class HashMap {
   private:
@@ -15,41 +18,63 @@ class HashMap {
     class iterator;
     class const_iterator;
 
+    // The default constructor (with hasher).
     explicit HashMap(Hash hasher = Hash());
+    // The constructor by begin-end iterators of std::pair<key, value> sequence (with hasher).
     HashMap(std::initializer_list<ElementType> hash_map, Hash hasher = Hash());
+    // The constructor by a std::initializer_list of std::pair<key, value> (with hasher).
     template<typename Iter>
     HashMap(Iter start, Iter end, Hash hasher = Hash());
 
+    // Method returns the number of elements. O(1)
     size_t size() const;
+    // Method checks whether HashMap is empty. O(1)
     bool empty() const;
+    // Method returns hasher by value. O(1)
     Hash hash_function() const;
 
+    // Method inserts the element.
+    // If such key already exists, method does nothing.
+    // Amortized O(1). Double capacity if size == capacity.
     void insert(const ElementType& element);
+    // Method erases the element with specific key.
+    // If such key doesn't exist, method does nothing.
+    // Amortized O(1). Quarter capacity if sz * 4 == capacity.
     void erase(const KeyType& key);
 
+    // Methods return (const_)iterator on the element with specific key. Amortized O(1).
     iterator find(const KeyType& key);
     const_iterator find(const KeyType& key) const;
 
+    // Method returns value by key.
+    // If such key doesn't exist, insert default value by the key. Amortized O(1).
     ValueType& operator[](const KeyType& key);
+    // Method returns value by key.
+    // If such key doesn't exist, throw std::out_of_range. Amortized O(1).
     const ValueType& at(const KeyType& key) const;
 
+    // Method clears the contents. O(1).
     void clear();
 
+    // Method returns an (const_)iterator to the beginning. O(1)
     iterator begin();
-    iterator end();
     const_iterator begin() const;
+
+    // Method returns an (const_)iterator to the end. O(1)
+    iterator end();
     const_iterator end() const;
 
   private:
-    HashMapType hash_map = {{}, {END}};
-    Hash hasher;
-    size_t sz = 0;
-    size_t capacity = 1;
+    HashMapType hash_map_ = {{}, {END}};
+    Hash hasher_;
+    size_t sz_ = 0;
+    size_t capacity_ = 1;
 
     size_t rehash_key(const KeyType& key) const;
     void rehash();
 };
 
+// Hash Table (const_)iterator with 2 fields: iterator to element into bucket and iterator to bucket.
 template<typename KeyType, typename ValueType, typename Hash>
 class HashMap<KeyType, ValueType, Hash>::iterator {
   private:
@@ -62,12 +87,16 @@ class HashMap<KeyType, ValueType, Hash>::iterator {
     using pointer = value_type*;
     using reference = value_type&;
 
+    // The default constructor.
     iterator() = default;
-    iterator(HashMapIterator _i, BucketIterator _j) : i(_i), j(_j) {
+    // The constructor by two iterators.
+    iterator(HashMapIterator i, BucketIterator j) : i_(i), j_(j) {
         next_not_empty();
     }
+
+    // Different forward_iterator operators are supported. Amortized O(1).
     iterator& operator++() {
-        ++j;
+        ++j_;
         next_not_empty();
         return *this;
     }
@@ -77,25 +106,25 @@ class HashMap<KeyType, ValueType, Hash>::iterator {
         return it;
     }
     bool operator==(const iterator& other) const {
-        return i == other.i && j == other.j;
+        return i_ == other.i_ && j_ == other.j_;
     }
     bool operator!=(const iterator& other) const {
         return !(*this == other);
     }
     reference operator*() {
-        return reinterpret_cast<reference>(*j);
+        return reinterpret_cast<reference>(*j_);
     }
     pointer operator->() {
-        return reinterpret_cast<pointer>(&(*j));
+        return reinterpret_cast<pointer>(&(*j_));
     }
 
   private:
-    HashMapIterator i;
-    BucketIterator j;
+    HashMapIterator i_;
+    BucketIterator j_;
     void next_not_empty() {
-        while (j == i->end()) {
-            ++i;
-            j = i->begin();
+        while (j_ == i_->end()) {
+            ++i_;
+            j_ = i_->begin();
         }
     }
 };
@@ -113,11 +142,12 @@ class HashMap<KeyType, ValueType, Hash>::const_iterator {
     using reference = const value_type&;
 
     const_iterator() = default;
-    const_iterator(HashMapConstIterator _i, BucketConstIterator _j) : i(_i), j(_j) {
+    const_iterator(HashMapConstIterator i, BucketConstIterator j) : i_(i), j_(j) {
         next_not_empty();
     }
+
     const_iterator& operator++() {
-        ++j;
+        ++j_;
         next_not_empty();
         return *this;
     }
@@ -127,37 +157,37 @@ class HashMap<KeyType, ValueType, Hash>::const_iterator {
         return it;
     }
     bool operator==(const const_iterator& other) const {
-        return i == other.i && j == other.j;
+        return i_ == other.i_ && j_ == other.j_;
     }
     bool operator!=(const const_iterator& other) const {
         return !(*this == other);
     }
     reference operator*() {
-        return reinterpret_cast<reference>(*j);
+        return reinterpret_cast<reference>(*j_);
     }
     pointer operator->(){
-        return reinterpret_cast<pointer>(&(*j));
+        return reinterpret_cast<pointer>(&(*j_));
     }
 
   private:
-    HashMapConstIterator i;
-    BucketConstIterator j;
+    HashMapConstIterator i_;
+    BucketConstIterator j_;
 
     void next_not_empty() {
-        while (j == i->end()) {
-            ++i;
-            j = i->begin();
+        while (j_ == i_->end()) {
+            ++i_;
+            j_ = i_->begin();
         }
     }
 };
 
 template<typename KeyType, typename ValueType, typename Hash>
-HashMap<KeyType, ValueType, Hash>::HashMap(Hash hasher) : hasher(hasher) {
+HashMap<KeyType, ValueType, Hash>::HashMap(Hash hasher) : hasher_(hasher) {
 }
 
 template<typename KeyType, typename ValueType, typename Hash>
 template<typename Iter>
-HashMap<KeyType, ValueType, Hash>::HashMap(Iter start, Iter end, Hash hasher) : hasher(hasher) {
+HashMap<KeyType, ValueType, Hash>::HashMap(Iter start, Iter end, Hash hasher) : hasher_(hasher) {
     for (auto it = start; it != end; ++it)
         insert(*it);
 }
@@ -169,17 +199,17 @@ HashMap<KeyType, ValueType, Hash>::HashMap(std::initializer_list<ElementType> ha
 
 template<typename KeyType, typename ValueType, typename Hash>
 size_t HashMap<KeyType, ValueType, Hash>::size() const {
-    return sz;
+    return sz_;
 }
 
 template<typename KeyType, typename ValueType, typename Hash>
 bool HashMap<KeyType, ValueType, Hash>::empty() const {
-    return sz == 0;
+    return sz_ == 0;
 }
 
 template<typename KeyType, typename ValueType, typename Hash>
 Hash HashMap<KeyType, ValueType, Hash>::hash_function() const {
-    return hasher;
+    return hasher_;
 }
 
 template<typename KeyType, typename ValueType, typename Hash>
@@ -187,52 +217,52 @@ void HashMap<KeyType, ValueType, Hash>::insert(const ElementType& element) {
     if (find(element.first) != end())
         return;
 
-    hash_map[rehash_key(element.first)].push_back(element);
-    ++sz;
+    hash_map_[rehash_key(element.first)].push_back(element);
+    ++sz_;
 
-    if (sz == capacity)
+    if (sz_ == capacity_)
         rehash();
 }
 
 template<typename KeyType, typename ValueType, typename Hash>
 void HashMap<KeyType, ValueType, Hash>::erase(const KeyType& key) {
     auto hashed_key = rehash_key(key);
-    auto it = std::find_if(hash_map[hashed_key].begin(), hash_map[hashed_key].end(),
+    auto it = std::find_if(hash_map_[hashed_key].begin(), hash_map_[hashed_key].end(),
                            [key](const ElementType &element) {
                                return element.first == key;
                            });
-    if (it == hash_map[hashed_key].end())
+    if (it == hash_map_[hashed_key].end())
         return;
 
-    hash_map[hashed_key].erase(it);
-    --sz;
+    hash_map_[hashed_key].erase(it);
+    --sz_;
 
-    if (sz * 4 == capacity)
+    if (sz_ * 4 == capacity_)
         rehash();
 }
 
 template<typename KeyType, typename ValueType, typename Hash>
 typename HashMap<KeyType, ValueType, Hash>::iterator HashMap<KeyType, ValueType, Hash>::find(const KeyType &key) {
     auto hashed_key = rehash_key(key);
-    auto it = std::find_if(hash_map[hashed_key].begin(), hash_map[hashed_key].end(),
+    auto it = std::find_if(hash_map_[hashed_key].begin(), hash_map_[hashed_key].end(),
                            [key](const ElementType &element) {
                                return element.first == key;
                            });
-    if (it == hash_map[hashed_key].end())
+    if (it == hash_map_[hashed_key].end())
         return end();
-    return iterator(hash_map.begin() + hashed_key, it);
+    return iterator(hash_map_.begin() + hashed_key, it);
 }
 
 template<typename KeyType, typename ValueType, typename Hash>
 typename HashMap<KeyType, ValueType, Hash>::const_iterator HashMap<KeyType, ValueType, Hash>::find(const KeyType &key) const {
     auto hashed_key = rehash_key(key);
-    auto it = std::find_if(hash_map[hashed_key].begin(), hash_map[hashed_key].end(),
+    auto it = std::find_if(hash_map_[hashed_key].begin(), hash_map_[hashed_key].end(),
                            [key](const ElementType &element) {
                                return element.first == key;
                            });
-    if (it == hash_map[hashed_key].end())
+    if (it == hash_map_[hashed_key].end())
         return end();
-    return const_iterator(hash_map.begin() + hashed_key, it);
+    return const_iterator(hash_map_.begin() + hashed_key, it);
 }
 
 template<typename KeyType, typename ValueType, typename Hash>
@@ -251,34 +281,34 @@ const ValueType& HashMap<KeyType, ValueType, Hash>::at(const KeyType& key) const
 
 template<typename KeyType, typename ValueType, typename Hash>
 void HashMap<KeyType, ValueType, Hash>::clear() {
-    hash_map = {{}, {END}};
-    sz = 0;
-    capacity = 1;
+    hash_map_ = {{}, {END}};
+    sz_ = 0;
+    capacity_ = 1;
 }
 
 template<typename KeyType, typename ValueType, typename Hash>
 void HashMap<KeyType, ValueType, Hash>::rehash() {
-    auto new_capacity = 2 * sz;
+    auto new_capacity = 2 * sz_;
     HashMapType new_hash_map(new_capacity);
 
-    for (auto hashed_key = 0ull; hashed_key < capacity; ++hashed_key) {
-        for (const auto &element : hash_map[hashed_key])
-            new_hash_map[hasher(element.first) % new_capacity].push_back(element);
+    for (auto hashed_key = 0ull; hashed_key < capacity_; ++hashed_key) {
+        for (const auto &element : hash_map_[hashed_key])
+            new_hash_map[hasher_(element.first) % new_capacity].push_back(element);
     }
 
     new_hash_map.push_back({END});
-    hash_map = new_hash_map;
-    capacity = new_capacity;
+    hash_map_ = new_hash_map;
+    capacity_ = new_capacity;
 }
 
 template<typename KeyType, typename ValueType, typename Hash>
 size_t HashMap<KeyType, ValueType, Hash>::rehash_key(const KeyType &key) const {
-    return hasher(key) % capacity;
+    return hasher_(key) % capacity_;
 }
 
 template<typename KeyType, typename ValueType, typename Hash>
 typename HashMap<KeyType, ValueType, Hash>::iterator HashMap<KeyType, ValueType, Hash>::begin()  {
-    auto it = std::find_if(hash_map.begin(), hash_map.end(), [](const std::vector<ElementType>& bucket) {
+    auto it = std::find_if(hash_map_.begin(), hash_map_.end(), [](const std::vector<ElementType>& bucket) {
         return !bucket.empty();
     });
     return iterator(it, it->begin());
@@ -286,12 +316,12 @@ typename HashMap<KeyType, ValueType, Hash>::iterator HashMap<KeyType, ValueType,
 
 template<typename KeyType, typename ValueType, typename Hash>
 typename HashMap<KeyType, ValueType, Hash>::iterator HashMap<KeyType, ValueType, Hash>::end() {
-    return iterator(--hash_map.end(), (--hash_map.end())->begin());
+    return iterator(--hash_map_.end(), (--hash_map_.end())->begin());
 }
 
 template<typename KeyType, typename ValueType, typename Hash>
 typename HashMap<KeyType, ValueType, Hash>::const_iterator HashMap<KeyType, ValueType, Hash>::begin() const {
-    auto it = std::find_if(hash_map.begin(), hash_map.end(), [](const std::vector<ElementType>& bucket) {
+    auto it = std::find_if(hash_map_.begin(), hash_map_.end(), [](const std::vector<ElementType>& bucket) {
         return !bucket.empty();
     });
     return const_iterator(it, it->begin());
@@ -299,5 +329,5 @@ typename HashMap<KeyType, ValueType, Hash>::const_iterator HashMap<KeyType, Valu
 
 template<typename KeyType, typename ValueType, typename Hash>
 typename HashMap<KeyType, ValueType, Hash>::const_iterator HashMap<KeyType, ValueType, Hash>::end() const {
-    return const_iterator(--hash_map.end(), (--hash_map.end())->begin());
+    return const_iterator(--hash_map_.end(), (--hash_map_.end())->begin());
 }
