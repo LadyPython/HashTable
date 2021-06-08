@@ -6,15 +6,20 @@
 #include <algorithm>
 
 
-// Hash Table with Separate Chaining.
+// Hash Table with Separate Chaining using std::vector<std::vector<>>.
+// Dynamic rehashing with doubling and halving of the table size.
 // https://en.wikipedia.org/wiki/Hash_table#Separate_chaining
 template<typename KeyType, typename ValueType, typename Hash = std::hash<KeyType>>
 class HashMap {
   private:
     typedef std::pair<KeyType, ValueType> ElementType;
-    ElementType END = ElementType();
+    ElementType end_ = ElementType();
     typedef std::vector<std::vector<ElementType>> HashMapType;
   public:
+    static constexpr size_t INCREASING_SIZE_COEFFICIENT = 1;
+    static constexpr size_t CHANGING_SIZE_COEFFICIENT = 2;
+    static constexpr size_t DECREASING_SIZE_COEFFICIENT = 4;
+
     class iterator;
     class const_iterator;
 
@@ -26,20 +31,20 @@ class HashMap {
     template<typename Iter>
     HashMap(Iter start, Iter end, Hash hasher = Hash());
 
-    // Method returns the number of elements. O(1)
+    // O(1)
     size_t size() const;
-    // Method checks whether HashMap is empty. O(1)
+    // O(1)
     bool empty() const;
     // Method returns hasher by value. O(1)
     Hash hash_function() const;
 
     // Method inserts the element.
     // If such key already exists, method does nothing.
-    // Amortized O(1). Double capacity if size == capacity.
+    // Amortized O(1).
     void insert(const ElementType& element);
     // Method erases the element with specific key.
     // If such key doesn't exist, method does nothing.
-    // Amortized O(1). Quarter capacity if sz * 4 == capacity.
+    // Amortized O(1).
     void erase(const KeyType& key);
 
     // Methods return (const_)iterator on the element with specific key. Amortized O(1).
@@ -53,7 +58,7 @@ class HashMap {
     // If such key doesn't exist, throw std::out_of_range. Amortized O(1).
     const ValueType& at(const KeyType& key) const;
 
-    // Method clears the contents. O(1).
+    // O(1).
     void clear();
 
     // Method returns an (const_)iterator to the beginning. O(1)
@@ -65,13 +70,13 @@ class HashMap {
     const_iterator end() const;
 
   private:
-    HashMapType hash_map_ = {{}, {END}};
+    HashMapType hash_map_ = {{}, {end_}};
     Hash hasher_;
     size_t sz_ = 0;
     size_t capacity_ = 1;
 
-    size_t rehash_key(const KeyType& key) const;
-    void rehash();
+    size_t hash_key(const KeyType& key) const;
+    void rehash_if_necessary();
 };
 
 // Hash Table (const_)iterator with 2 fields: iterator to element into bucket and iterator to bucket.
@@ -214,54 +219,56 @@ Hash HashMap<KeyType, ValueType, Hash>::hash_function() const {
 
 template<typename KeyType, typename ValueType, typename Hash>
 void HashMap<KeyType, ValueType, Hash>::insert(const ElementType& element) {
-    if (find(element.first) != end())
+    if (find(element.first) != end()) {
         return;
+    }
 
-    hash_map_[rehash_key(element.first)].push_back(element);
+    hash_map_[hash_key(element.first)].push_back(element);
     ++sz_;
 
-    if (sz_ == capacity_)
-        rehash();
+    rehash_if_necessary();
 }
 
 template<typename KeyType, typename ValueType, typename Hash>
 void HashMap<KeyType, ValueType, Hash>::erase(const KeyType& key) {
-    auto hashed_key = rehash_key(key);
+    auto hashed_key = hash_key(key);
     auto it = std::find_if(hash_map_[hashed_key].begin(), hash_map_[hashed_key].end(),
                            [key](const ElementType &element) {
                                return element.first == key;
                            });
-    if (it == hash_map_[hashed_key].end())
+    if (it == hash_map_[hashed_key].end()) {
         return;
+    }
 
     hash_map_[hashed_key].erase(it);
     --sz_;
 
-    if (sz_ * 4 == capacity_)
-        rehash();
+    rehash_if_necessary();
 }
 
 template<typename KeyType, typename ValueType, typename Hash>
 typename HashMap<KeyType, ValueType, Hash>::iterator HashMap<KeyType, ValueType, Hash>::find(const KeyType &key) {
-    auto hashed_key = rehash_key(key);
+    auto hashed_key = hash_key(key);
     auto it = std::find_if(hash_map_[hashed_key].begin(), hash_map_[hashed_key].end(),
                            [key](const ElementType &element) {
                                return element.first == key;
                            });
-    if (it == hash_map_[hashed_key].end())
+    if (it == hash_map_[hashed_key].end()) {
         return end();
+    }
     return iterator(hash_map_.begin() + hashed_key, it);
 }
 
 template<typename KeyType, typename ValueType, typename Hash>
 typename HashMap<KeyType, ValueType, Hash>::const_iterator HashMap<KeyType, ValueType, Hash>::find(const KeyType &key) const {
-    auto hashed_key = rehash_key(key);
+    auto hashed_key = hash_key(key);
     auto it = std::find_if(hash_map_[hashed_key].begin(), hash_map_[hashed_key].end(),
                            [key](const ElementType &element) {
                                return element.first == key;
                            });
-    if (it == hash_map_[hashed_key].end())
+    if (it == hash_map_[hashed_key].end()) {
         return end();
+    }
     return const_iterator(hash_map_.begin() + hashed_key, it);
 }
 
@@ -274,35 +281,40 @@ ValueType& HashMap<KeyType, ValueType, Hash>::operator[](const KeyType& key) {
 template<typename KeyType, typename ValueType, typename Hash>
 const ValueType& HashMap<KeyType, ValueType, Hash>::at(const KeyType& key) const {
     auto it = find(key);
-    if (it == end())
+    if (it == end()) {
         throw std::out_of_range("HashMap<KeyType, ValueType, Hash>::at() : key is not exist");
+    }
     return it->second;
 }
 
 template<typename KeyType, typename ValueType, typename Hash>
 void HashMap<KeyType, ValueType, Hash>::clear() {
-    hash_map_ = {{}, {END}};
+    hash_map_ = {{}, {end_}};
     sz_ = 0;
     capacity_ = 1;
 }
 
 template<typename KeyType, typename ValueType, typename Hash>
-void HashMap<KeyType, ValueType, Hash>::rehash() {
-    auto new_capacity = 2 * sz_;
+void HashMap<KeyType, ValueType, Hash>::rehash_if_necessary() {
+    if (sz_ * INCREASING_SIZE_COEFFICIENT != capacity_ && sz_ * DECREASING_SIZE_COEFFICIENT != capacity_) {
+        return;
+    }
+
+    size_t new_capacity = sz_ * CHANGING_SIZE_COEFFICIENT;
     HashMapType new_hash_map(new_capacity);
 
-    for (auto hashed_key = 0ull; hashed_key < capacity_; ++hashed_key) {
+    for (size_t hashed_key = 0; hashed_key < capacity_; ++hashed_key) {
         for (const auto &element : hash_map_[hashed_key])
             new_hash_map[hasher_(element.first) % new_capacity].push_back(element);
     }
 
-    new_hash_map.push_back({END});
+    new_hash_map.push_back({end_});
     hash_map_ = new_hash_map;
     capacity_ = new_capacity;
 }
 
 template<typename KeyType, typename ValueType, typename Hash>
-size_t HashMap<KeyType, ValueType, Hash>::rehash_key(const KeyType &key) const {
+size_t HashMap<KeyType, ValueType, Hash>::hash_key(const KeyType &key) const {
     return hasher_(key) % capacity_;
 }
 
