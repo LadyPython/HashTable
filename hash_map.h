@@ -298,7 +298,7 @@ void HashMap<KeyType, ValueType, Hash>::clear() {
 
 template<typename KeyType, typename ValueType, typename Hash>
 void HashMap<KeyType, ValueType, Hash>::rehash_if_necessary() {
-    if (sz_ * INCREASING_SIZE_COEFFICIENT != capacity_ && sz_ * DECREASING_SIZE_COEFFICIENT != capacity_) {
+    if (sz_ * INCREASING_SIZE_COEFFICIENT < capacity_ && sz_ * DECREASING_SIZE_COEFFICIENT > capacity_) {
         return;
     }
 
